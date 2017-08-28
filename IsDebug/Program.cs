@@ -30,6 +30,14 @@ namespace IsDebug
                     Console.WriteLine("");
                     Console.WriteLine("File          : {0}", Path.GetFileName(fileName));
                     Console.WriteLine("Path          : {0}", Path.GetDirectoryName(fileName));
+
+                    var ver = FileVersionInfo.GetVersionInfo(fileName);
+                    Console.WriteLine("File Version  : {0}", ver.FileVersion);
+
+                    var linkDateTime = GetLinkerTimeStamp(fileName);
+                    Console.WriteLine("Built on      : {0:G}", linkDateTime);
+
+
                 }
 
 
@@ -37,14 +45,12 @@ namespace IsDebug
                 {
                     if (beVerbose)
                     {
-                        var ver = FileVersionInfo.GetVersionInfo(fileName);
-                        Console.WriteLine("File Version  : {0}", ver.FileVersion);
+                        
 
                         var assembly = Assembly.ReflectionOnlyLoadFrom(fileName);
                         Console.WriteLine("CLR Version   : {0}", assembly.ImageRuntimeVersion);
 
-                        var linkDateTime = GetLinkerTimeStamp(fileName);
-                        Console.WriteLine("Built on      : {0:G}", linkDateTime);
+
                     }
 
                     var ass = Assembly.LoadFile(fileName);
@@ -63,6 +69,7 @@ namespace IsDebug
 
                             if (beVerbose)
                             {
+
                                 Console.WriteLine("Debuggable    : {0}",
                                     (typedAttribute.DebuggingFlags & DebuggableAttribute.DebuggingModes.Default) ==
                                     DebuggableAttribute.DebuggingModes.Default);
@@ -105,25 +112,29 @@ namespace IsDebug
 
         private static bool IsDotNet(string fileName, bool doSpew)
         {
-            var returnValue = true;
+            var returnValue = false;
 
             try
             {
                 Assembly.LoadFile(fileName);
+                returnValue = true;
             }
             catch (BadImageFormatException bif)
             {
-                if (doSpew)
-                    Console.WriteLine("{0} throws BadImageFormatException, wrong format or not a .net assembly",
-                        fileName);
-                returnValue = false;
+                //if (doSpew)
+                //    Console.WriteLine(
+                //        $"BadImageFormatException, {fileName} has the wrong format or is not a .net assembly.");
+                     
             }
             catch (Exception e)
             {
                 if (doSpew) Console.WriteLine("Error loading {0}:{1}", Path.GetFileName(fileName), e.Message);
             }
 
-
+            if (doSpew)
+            {
+                Console.WriteLine($".NET Assembly: {returnValue}");
+            }
             return returnValue;
         }
 
