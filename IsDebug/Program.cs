@@ -7,6 +7,30 @@ namespace IsDebug
 {
     internal class Program
     {
+        public enum MachineType : ushort
+        {
+            IMAGE_FILE_MACHINE_UNKNOWN = 0x0,
+            IMAGE_FILE_MACHINE_AM33 = 0x1d3,
+            IMAGE_FILE_MACHINE_AMD64 = 0x8664,
+            IMAGE_FILE_MACHINE_ARM = 0x1c0,
+            IMAGE_FILE_MACHINE_EBC = 0xebc,
+            IMAGE_FILE_MACHINE_I386 = 0x14c,
+            IMAGE_FILE_MACHINE_IA64 = 0x200,
+            IMAGE_FILE_MACHINE_M32R = 0x9041,
+            IMAGE_FILE_MACHINE_MIPS16 = 0x266,
+            IMAGE_FILE_MACHINE_MIPSFPU = 0x366,
+            IMAGE_FILE_MACHINE_MIPSFPU16 = 0x466,
+            IMAGE_FILE_MACHINE_POWERPC = 0x1f0,
+            IMAGE_FILE_MACHINE_POWERPCFP = 0x1f1,
+            IMAGE_FILE_MACHINE_R4000 = 0x166,
+            IMAGE_FILE_MACHINE_SH3 = 0x1a2,
+            IMAGE_FILE_MACHINE_SH3DSP = 0x1a3,
+            IMAGE_FILE_MACHINE_SH4 = 0x1a6,
+            IMAGE_FILE_MACHINE_SH5 = 0x1a8,
+            IMAGE_FILE_MACHINE_THUMB = 0x1c2,
+            IMAGE_FILE_MACHINE_WCEMIPSV2 = 0x169,
+        }
+
         private static int Main(string[] args)
         {
             var returnValue = false;
@@ -41,14 +65,58 @@ namespace IsDebug
                 }
 
 
-                if (IsDotNet(fileName, beVerbose))
+                if (!IsDotNet(fileName, beVerbose))
+                {
+                    using (FileStream fs = new FileStream(fileName, FileMode.Open, FileAccess.Read))
+                    {
+                        using (BinaryReader br = new BinaryReader(fs))
+                        {
+                            fs.Seek(0x3c, SeekOrigin.Begin);
+                            Int32 peOffset = br.ReadInt32();
+                            fs.Seek(peOffset, SeekOrigin.Begin);
+                            UInt32 peHead = br.ReadUInt32();
+                            bool hasPEHeader = (peHead == 0x00004550);
+                            Console.WriteLine($"Has PE Header : {hasPEHeader}");
+
+                            if (hasPEHeader)
+                            {
+                                MachineType mt = (MachineType)(br.ReadUInt16());
+                                string machineType = "Unknown";
+
+                                switch (mt)
+                                {
+                                    case MachineType.IMAGE_FILE_MACHINE_AMD64:
+                                        machineType = "AMD64";
+                                        break;
+                                    case MachineType.IMAGE_FILE_MACHINE_I386:
+                                        machineType = "i386";
+                                        break;
+                                    case MachineType.IMAGE_FILE_MACHINE_IA64:
+                                        machineType = "IA64";
+                                        break;
+
+                                    default:
+                                        machineType = mt.ToString();
+                                        break;
+                                }
+                                Console.WriteLine($"Machine Type  : {machineType}");
+
+
+
+
+                            }
+                        }
+                    }
+                }
+                else
                 {
                     if (beVerbose)
                     {
-                        
+
 
                         var assembly = Assembly.ReflectionOnlyLoadFrom(fileName);
-                        Console.WriteLine("CLR Version   : {0}", assembly.ImageRuntimeVersion);
+                        Console.WriteLine($"CLR Version   : {assembly.ImageRuntimeVersion}");
+
 
 
                     }
@@ -57,13 +125,14 @@ namespace IsDebug
                     foreach (var att in ass.GetCustomAttributes(false))
                         if (att.GetType() == Type.GetType("System.Diagnostics.DebuggableAttribute"))
                         {
-                            var typedAttribute = (DebuggableAttribute) att;
+                            var typedAttribute = (DebuggableAttribute)att;
 
 
-                            var debugOuput = (typedAttribute.DebuggingFlags & DebuggableAttribute.DebuggingModes.Default)
-                                             != DebuggableAttribute.DebuggingModes.None
-                                ? "Full"
-                                : "pdb-only";
+                            var debugOuput =
+                                (typedAttribute.DebuggingFlags & DebuggableAttribute.DebuggingModes.Default)
+                                != DebuggableAttribute.DebuggingModes.None
+                                    ? "Full"
+                                    : "pdb-only";
 
                             //returnValue = typedAttribute.IsJITOptimizerDisabled;
 
@@ -121,19 +190,23 @@ namespace IsDebug
             }
             catch (BadImageFormatException bif)
             {
+
+                bif = null;//make the compiler happy
                 //if (doSpew)
                 //    Console.WriteLine(
                 //        $"BadImageFormatException, {fileName} has the wrong format or is not a .net assembly.");
-                     
+
+                //It's not a .net assembly, or wrong format, so we'll just return false
+
             }
             catch (Exception e)
             {
-                if (doSpew) Console.WriteLine("Error loading {0}:{1}", Path.GetFileName(fileName), e.Message);
+                if (doSpew) Console.WriteLine($"Error loading {Path.GetFileName(fileName)}:{e.Message}" );
             }
 
             if (doSpew)
             {
-                Console.WriteLine($".NET Assembly: {returnValue}");
+                Console.WriteLine($".NET Assembly : {returnValue}");
             }
             return returnValue;
         }
